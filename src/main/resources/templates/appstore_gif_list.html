@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title></title>
+    <link rel="stylesheet" th:href="@{/css/pintuer.css}">
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script th:src="@{/js/jquery.js}"></script>
+    <script th:src="@{/js/pintuer.js}"></script>
+</head>
+<body>
+
+<a th:href="${#request.getContextPath()}" id="contextPath"></a>
+
+<form method="post" action="">
+    <div class="panel admin-panel">
+        <div class="panel-head">
+            <strong class="icon-reorder"> 管理GIF</strong>
+        </div>
+        <div class="padding border-bottom">
+            <ul class="search">
+                <li>
+                    <button type="button" class="button border-green" id="checkall">
+                        <span class="icon-check"></span>全选
+                    </button>
+                    <button type="button" id="del_batch" class="button border-red">
+                        <span class="icon-trash-o"></span>批量删除
+                    </button>
+                </li>
+
+
+            </ul>
+        </div>
+        <table class="table table-hover text-center">
+            <tr>
+                <th width="20%">ID</th>
+                <th width="30%">图片</th>
+                <th width="20%">内容</th>
+                <th width="30%">操作</th>
+            </tr>
+            <tr id="bottom">
+                <td colspan="8">
+                    <div class="pagelist">
+                        <a href="javascript:void(0)" onclick="return previous()">上一页</a>
+
+                        <a id="next_flag" href="javascript:void(0)"
+                           onclick="return next()">下一页</a> <a href="javascript:void(0)"
+                                                              onclick="return page(-1)">尾页</a>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</form>
+<script type="text/javascript">
+    //页面索引记录
+    var currentPage = 0;
+    var pageSize = 20;
+    var pageCount = 100;
+    var contextPath;
+    var currentType = 2;
+    //默认加载第一页
+    $(document).ready(function () {
+        contextPath = $("#contextPath").attr('href');
+        page(1);
+    });
+
+    //前一页
+    function previous() {
+        if (currentPage - 1 < 1) {
+            return false;
+        }
+        page(currentPage - 1)
+    }
+    //前一页
+    function next() {
+        if (currentPage + 1 > pageCount) {
+            return false;
+        }
+        page(currentPage + 1)
+    }
+
+    //获取对应页面
+    function page(index) {
+        if (currentPage == index) {
+            return false;
+        }
+        currentPage = index;
+        var url = contextPath + "/list/for_AppStore/";
+        $.post(url, {'pageIndex': index, 'limit': pageSize}, function (result) {
+            var json = result;
+            if (json.code == 0) {
+                $("table tr[id*='tr_']").each(function (i) {
+                    this.remove();//移除当前的元素
+                })
+                refreshTable(json);
+            }
+        });
+
+        return true;
+    }
+
+    //刷新表格
+    function refreshTable(json) {
+        var pageData = json["gifs"];
+        if (pageData) {
+            for (var i = 0; i < pageData.length; i++) {
+                var tr;
+                if (i == 0) {
+                    tr = $("table tr").eq(0);
+                } else {
+                    tr = $("table tr").eq(-2);
+                }
+                reviewTableTr(pageData[i], tr);
+            }
+        }
+        refreshPageIndex(json["pageCount"], json["currentPageIndex"]);
+    }
+
+    function refreshPageIndex(page_count, currentPageIndex) {
+        currentPage = currentPageIndex;
+        this.pageCount = page_count;
+
+        var pageIndexHtml = "";
+        var nextAflag = $("a#next_flag").eq(0);
+        if (currentPage <= pageSize) {
+            var end = pageSize;
+            if (pageCount < pageSize) {
+                end = pageCount;
+            }
+            for (var i = 1; i <= end; i++) {
+                pageIndexHtml += getItem(currentPage, i);
+            }
+        } else {
+            //11
+
+            if (currentPage == pageCount) {
+                for (var i = pageCount - pageSize + 1; i <= pageCount; i++) {
+                    pageIndexHtml += getItem(currentPage, i);
+                }
+            } else if (currentPage + 5 > pageCount) {
+                for (var i = pageCount - pageSize + 1; i <= pageCount; i++) {
+                    pageIndexHtml += getItem(currentPage, i);
+                }
+            } else {
+                for (var i = pageCount - 4; i <= pageCount + 5; i++) {
+                    pageIndexHtml += getItem(currentPage, i);
+                }
+            }
+
+        }
+        $("a.pg_flag").each(function () {
+            this.remove();//移除当前的元素
+        })
+        nextAflag.before(pageIndexHtml);
+
+    }
+
+
+    function getItem(currentPage, i) {
+        if (i == currentPage) {
+            return "<a  class='pg_flag' href='javascript:void(0)' onclick='return page(" + i + ")'><span class='current'>" + i + "</span></a>";
+        } else {
+            return "<a class='pg_flag' href='javascript:void(0)' onclick='return page(" + i + ")'>" + i + "</a>";
+        }
+    }
+
+
+    function del(alink) {
+        var id = alink.getAttribute("id");
+        $.post(contextPath + "/list/appStore/del", {
+            'id': id,
+            'currentPage': currentPage,
+            'limit': pageSize,
+            'type': currentType
+        }, function (result) {
+            $("#tr_" + id).remove();//移除当前的元素
+
+            var json = result;
+            var pageData = json["gif"];
+
+            var last2tr = $("table tr").eq(-2);
+            if (last2tr.size() == 0) {
+                alert("指定的table id或行数不存在！");
+                return;
+            }
+            if (pageData) {
+                reviewTableTr(pageData, last2tr);
+            } else {
+                page(json["currentPageIndex"]);
+            }
+            refreshPageIndex(json["pageCount"], json["currentPageIndex"]);
+        });
+
+    }
+    //
+    function reviewTableTr(pageData, tr) {
+        //获取table倒数第二行 $("#tab tr").eq(-2)
+        //var last2tr=$("table tr").eq(row);
+
+        var currentItem = $("tr#tr_" + pageData["id"]);
+
+        if (currentItem.length > 0) {
+            return;
+        }
+
+        var toAdd = "<tr id='tr_" + pageData["id"] + "'>";
+        toAdd += "<td><input type='checkbox' name='id[]' value='" + pageData["id"] + "' />" + pageData["id"] + "</td>";
+
+        toAdd += "<td><img src='" + pageData.img_url + "'   height='100' onclick='show(this)'/></td>";
+        toAdd += "<td style='word-wrap:break-word'>" + pageData["description"] + "</td>";
+
+        var id = pageData["id"];
+
+        toAdd += "<td><div class='button-group'><a class='button border-red' href='javascript:void(0)' id=" + id + " onclick='return del(this)'><span class='icon-trash-o'></span>删除</a></div></td>";
+        toAdd += "</tr>";
+        tr.after(toAdd);
+    }
+
+
+    function show(img) {
+        parent.showOriginImg(img);
+    }
+    $("#checkall").click(function () {
+        $("input[name='id[]']").each(function () {
+            if (this.checked) {
+                this.checked = false;
+            } else {
+                this.checked = true;
+            }
+        });
+    })
+    $("#del_batch").click(function () {
+        var chk_value = [];
+        $('input[name="id[]"]:checked').each(function () {
+            chk_value.push($(this).val());
+        });
+        if (chk_value.length > 0) {
+            var ids = JSON.stringify(chk_value);
+            $.post(contextPath + "/list/appStore/delBatch", {
+                'ids': ids,
+                'currentPage': currentPage,
+                'limit': pageSize
+            }, function (result) {
+
+                var json = result;
+                var pageData = json["gifs"];
+                for (var i = 0; i < chk_value.length; i++) {
+                    $("#tr_" + chk_value[i]).remove();//移除当前的元素
+                }
+                if (pageData) {
+                    var last2tr = $("table tr").eq(-2);
+                    if (last2tr.size() == 0) {
+                        alert("指定的table id或行数不存在！");
+                        return;
+                    }
+                    for (var i = 0; i < pageData.length; i++) {
+                        var dy = pageData[i];
+                        reviewTableTr(dy, last2tr);
+                    }
+                } else {
+                    page(json["currentPageIndex"]);
+                }
+                refreshPageIndex(json["pageCount"],
+                    json["currentPageIndex"]);
+            });
+            return true;
+        }
+    })
+
+    function selectType() {
+        alert();
+    }
+</script>
+</body>
+</html>
